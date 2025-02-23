@@ -69,12 +69,25 @@ jobs:
 
       - name: Setup Python and Repo Tool
         run: |
-          python3 -m pip install --upgrade pip
-          pip3 install gitpython xmltodict
-          mkdir -p ~/bin
-          aria2c -x16 -s16 -o ~/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
-          chmod a+x ~/bin/repo
+          # Create bin directory first
+          mkdir -p $HOME/bin
+          
+          # Install Python packages
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user gitpython xmltodict
+          
+          # Download repo tool with correct path
+          aria2c -x16 -s16 -d $HOME/bin -o repo \
+            https://storage.googleapis.com/git-repo-downloads/repo
+          
+          # Set permissions
+          chmod +x $HOME/bin/repo
+          
+          # Add to PATH
           echo "$HOME/bin" >> $GITHUB_PATH
+          
+          # Verify installation
+          repo --version
 
       - name: Configure Build Directory
         run: |
