@@ -1,0 +1,155 @@
+name: Build Kernel (Optimized)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  ROOT_DIR_PREFIX: "OPACE3V-A15"
+  BRANCH: "android14-6.1"
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip git zip unzip ninja-build bc bison flex \
+            libssl-dev libelf-dev wget build-essential ccache \
+            pigz zstd cpio aria2
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 6G
+          compression: true
+          compression-level: 6
+          prefetch: ${{ github.repository }}
+
+      - name: Cache Repo Sources
+        uses: actions/cache@v3
+        with:
+          path: |
+            builds/${{ env.ROOT_DIR }}/kernel_platform
+            ~/.cache/bazel
+          key: ${{ runner.os }}-kernel-sources-${{ hashFiles('.github/workflows/*.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-kernel-sources-
+
+      - name: Install Latest Pahole
+        run: |
+          sudo apt-get purge -y dwarves
+          aria2c -x16 -s16 https://git.kernel.org/pub/scm/devel/pahole/pahole.git/snapshot/pahole-1.26.tar.gz
+          tar xzf pahole-1.26.tar.gz
+          cd pahole-1.26
+          cmake -D__LIB=lib -B build
+          cmake --build build -j$(nproc)
+          sudo cmake --install build
+
+      - name: Setup Python and Repo Tool
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install gitpython xmltodict
+          mkdir -p ~/bin
+          aria2c -x16 -s16 -o ~/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Configure Build Directory
+        run: |
+          ROOT_DIR="${ROOT_DIR_PREFIX}-$(date +'%s')"
+          echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
+          mkdir -p "builds/${ROOT_DIR}"
+
+      - name: Clone Required Repositories
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          git clone --depth=1 --single-branch https://github.com/TheWildJames/AnyKernel3.git -b $BRANCH
+          git clone --depth=1 --single-branch https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+          git clone --depth=1 --single-branch https://github.com/WildPlusKernel/kernel_patches.git
+
+      - name: Setup Kernel Source
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          mkdir -p kernel_platform/oneplus_ace3v_v
+          cd kernel_platform/oneplus_ace3v_v
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/sm7675 -m oneplus_ace_3v_v.xml --depth=1
+          repo sync -c -j$(nproc) --force-sync --no-clone-bundle --no-tags --current-branch
+          rm -rf ./kernel_platform/common/android/abi_gki_protected_exports_*
+
+      - name: Setup KernelSU
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          cd KernelSU-Next/kernel
+          KSU_VERSION=$(expr $(git rev-list --count HEAD) "+" 10200)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Makefile
+
+      - name: Parallel Setup SUSFS
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
+        run: |
+          mkdir -p ./common/fs ./common/include/linux
+          cp ../../../susfs4ksu/kernel_patches/fs/* ./common/fs/ &
+          cp ../../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/ &
+          cp ../../../susfs4ksu/kernel_patches/KernelSU/*.patch ./KernelSU-Next/ &
+          cp ../../../kernel_patches/*.patch ./common/ &
+          wait
+          
+          patch -p1 --forward < KernelSU-Next-Implement-SUSFS-v1.5.5-Universal.patch || true &
+          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true &
+          patch -p1 -F 3 < 69_hide_stuff.patch || true &
+          wait
+
+      - name: Optimized Build Kernel
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/
+        run: |
+          cd kernel_platform
+          mkdir out
+          export CCACHE_DIR=/github/workspace/.ccache
+          export CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,file_stat_matches
+          
+          ./build_with_bazel.py \
+            -t pineapple \
+            gki \
+            --jobs=$(($(nproc) * 2)) \
+            --verbose_failures \
+            --config=stamp \
+            --disk_cache=./.bazel-disk-cache \
+            --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
+            --ignore_missing_projects \
+            --copt=-march=native \
+            --copt=-mtune=native \
+            -o "$(pwd)/out"
+
+      - name: Create Fast ZIP Package
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          cp kernel_platform/oneplus_ace3v_v/kernel_platform/out/dist/Image* AnyKernel3/
+          cd AnyKernel3
+          ZIP_NAME="Kernel-OP-A15-${BRANCH}-$(date +'%s').zip"
+          find . -type f -print0 | xargs -0 -P$(nproc) -I{} zip -0 "../${ZIP_NAME}" "{}"
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build
+          path: |
+            builds/${{ env.ROOT_DIR }}/${{ env.zip_name }}
+          retention-days: 3
