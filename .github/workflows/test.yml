@@ -137,10 +137,19 @@ jobs:
       - name: Create Fast ZIP Package
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
+          # Copy kernel images
           cp kernel_platform/oneplus_ace3v_v/kernel_platform/out/dist/Image* AnyKernel3/
+          
+          # Create ZIP with proper paths
           cd AnyKernel3
           ZIP_NAME="Kernel-OP-A15-${BRANCH}-$(date +'%s').zip"
-          find . -type f -print0 | xargs -0 -P$(nproc) -I{} zip -0 "../${ZIP_NAME}" "{}"
+          
+          # Create zip with proper directory structure
+          zip -r -9 "../${ZIP_NAME}" . -x ".git/*" -x "*.git*" -x ".github/*"
+          
+          # Verify zip integrity
+          unzip -t "../${ZIP_NAME}"
+          
           echo "zip_name=${ZIP_NAME}" >> $GITHUB_ENV
 
       - name: Upload Artifacts
