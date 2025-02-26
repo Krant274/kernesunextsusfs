@@ -116,10 +116,9 @@ jobs:
           wait
 
       - name: Add SUSFS Configuration Settings
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
         run: |
-          pwd
-          ls -l 
-          cd ..
+
           # Add KSU configuration settings
           echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_WITH_KPROBES=n" >> ./common/arch/arm64/configs/gki_defconfig
