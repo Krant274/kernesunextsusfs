@@ -117,6 +117,9 @@ jobs:
 
       - name: Add SUSFS Configuration Settings
         run: |
+          pwd
+          ls -l 
+          cd ..
           # Add KSU configuration settings
           echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_WITH_KPROBES=n" >> ./common/arch/arm64/configs/gki_defconfig
