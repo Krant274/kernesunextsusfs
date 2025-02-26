@@ -76,9 +76,11 @@ jobs:
       - name: Clone Required Repositories
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
-          git clone --recursive https://github.com/TheWildJames/AnyKernel3.git -b gki
+          git clone https://github.com/TheWildJames/AnyKernel3.git -b gki
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
           git clone https://github.com/WildPlusKernel/kernel_patches.git
+          wget https://github.com/Krant274/kernesunextsusfs/blob/main/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
+          mv 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch kernel_patches/
 
       - name: Setup Kernel Source
         working-directory: builds/${{ env.ROOT_DIR }}
@@ -108,7 +110,7 @@ jobs:
           cp ../../../kernel_patches/*.patch ./common/ &
           wait
           
-          patch -p1 --forward < KernelSU-Next-Implement-SUSFS-v1.5.5-Universal.patch || true &
+          patch -p1 --forward < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || true &
           patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true &
           patch -p1 -F 3 < 69_hide_stuff.patch || true &
           wait
