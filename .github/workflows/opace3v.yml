@@ -102,7 +102,9 @@ jobs:
           git clone https://github.com/TheWildJames/AnyKernel3.git -b $BRANCH
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
           git clone https://github.com/WildPlusKernel/kernel_patches.git
-
+          wget https://github.com/Krant274/kernesunextsusfs/blob/main/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
+          mv 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch kernel_patches/
+    
       - name: Setup Kernel Source
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
@@ -115,7 +117,7 @@ jobs:
       - name: Setup KernelSU
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
         run: |
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs
           cd KernelSU-Next/kernel
           KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" 10200)
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
@@ -140,11 +142,11 @@ jobs:
           #cp ../../../kernel_patches/apk_sign.c_fix.patch ./
           #cp ../../../kernel_patches/Makefile_fix.patch ./
           #cp ../../../kernel_patches/core_hook.c_fix.patch ./
-          cp ../../../kernel_patches/KernelSU-Next-Implement-SUSFS-v1.5.5-Universal.patch ./KernelSU-Next
+          cp ../../../kernel_patches/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch ./KernelSU-Next
 
           # Apply patches
           cd KernelSU-Next
-          patch -p1 --forward < KernelSU-Next-Implement-SUSFS-v1.5.5-Universal.patch || true
+          patch -p1 --forward < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || true
           
           cd ../common
           patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
