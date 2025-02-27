@@ -99,7 +99,7 @@ jobs:
       - name: Clone Required Repositories
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
-          git clone https://github.com/TheWildJames/AnyKernel3.git -b $BRANCH
+          git clone https://github.com/TheWildJames/AnyKernel3.git -b gki
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
           git clone https://github.com/WildPlusKernel/kernel_patches.git
           wget https://github.com/Krant274/kernesunextsusfs/blob/main/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
