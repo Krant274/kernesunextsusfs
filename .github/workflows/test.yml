@@ -120,6 +120,31 @@ jobs:
           #echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           #sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Makefile
 
+      - name: Setup SUSFS
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
+        run: |
+          # Create necessary directories
+          mkdir -p ./common/fs
+          mkdir -p ./common/include/linux
+          
+          # Copy SUSFS files
+          cp ../../../susfs4ksu/kernel_patches/fs/* ./common/fs/
+          cp ../../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          
+          # Copy patches
+          cp ../../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
+          cp ../../../kernel_patches/69_hide_stuff.patch ./common/
+          cp ../../../kernel_patches/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch ./KernelSU-Next
+
+          # Apply patches
+          cd KernelSU-Next
+          patch -p1 --forward < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || true
+          
+          cd ../common
+          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
+          patch -p1 -F 3 < 69_hide_stuff.patch || true
+          sed -i '/obj-$(CONFIG_KSU_SUSFS_SUS_SU) += sus_su.o/d' ./fs/Makefile
+
       - name: Configure Kernel
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
         run: |
