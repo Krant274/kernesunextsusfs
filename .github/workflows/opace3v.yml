@@ -118,7 +118,9 @@ jobs:
           # Create necessary directories
           mkdir -p ./common/fs
           mkdir -p ./common/include/linux
-          
+                    
+          echo "Applying SUSFS patches..."
+  
           # Copy SUSFS files
           cp ../../../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp ../../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
