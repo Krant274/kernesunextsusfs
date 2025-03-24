@@ -96,11 +96,9 @@ jobs:
       - name: Clone Required Repositories
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
-          git clone https://github.com/TheWildJames/AnyKernel3.git -b gki
+          git clone https://github.com/TheWildJames/AnyKernel3.git -b gki-2.0
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
           git clone https://github.com/WildPlusKernel/kernel_patches.git
-          wget https://github.com/Krant274/kernesunextsusfs/blob/main/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
-          mv 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch kernel_patches/
     
       - name: Setup Kernel Source
         working-directory: builds/${{ env.ROOT_DIR }}
@@ -108,15 +106,15 @@ jobs:
           mkdir -p kernel_platform/oneplus_ace3v_v
           cd kernel_platform/oneplus_ace3v_v
           repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/sm7675 -m oneplus_ace_3v_v.xml --depth=1
-          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+          repo --trace sync -c -j$(nproc --all) --no-tags --fail-fast
           rm -rf ./kernel_platform/common/android/abi_gki_protected_exports_*
 
       - name: Setup KernelSU
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
         run: |
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs
-          cd KernelSU-Next/kernel
-          KSU_VERSION=$(git describe --tags --abbrev=0)
+          #cd KernelSU-Next/kernel
+          KSU_VERSION=$(cd ./KernelSU-Next/kernel && git describe --tags --abbrev=0)
           #KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" 10200)
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           #sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Makefile
@@ -134,10 +132,10 @@ jobs:
           cp ../../../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
           
           # Copy patches
-          cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU-Next/
           cp ../../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
           cp ../../../kernel_patches/69_hide_stuff.patch ./common/
-          cp ../../../kernel_patches/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch ./KernelSU-Next
+          cp ../../../kernel_patches/next/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch ./KernelSU-Next
+          cp ../../../kernel_patches/next/next_hooks.patch ./common/
 
           # Apply patches
           cd KernelSU-Next
@@ -146,6 +144,7 @@ jobs:
           cd ../common
           patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
           patch -p1 -F 3 < 69_hide_stuff.patch || true
+          patch -p1 --fuzz=3 < ./next_hooks.patch
           sed -i '/obj-$(CONFIG_KSU_SUSFS_SUS_SU) += sus_su.o/d' ./fs/Makefile
           git add -A && git commit -a -m "BUILD Kernel" || true
           cd ..
@@ -183,7 +182,6 @@ jobs:
           sed -i 's/CONFIG_LTO_CLANG_FULL=y/CONFIG_LTO_CLANG_THIN=y/' "./common/arch/arm64/configs/gki_defconfig"
           sed -i 's/CONFIG_LTO_CLANG_NONE=y/CONFIG_LTO_CLANG_THIN=y/' "./common/arch/arm64/configs/gki_defconfig"
 
-          sed -i '2s/check_defconfig//' ./common/build.config.gki
           
       - name: Build Kernel
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/
