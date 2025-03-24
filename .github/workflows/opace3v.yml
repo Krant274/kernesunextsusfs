@@ -136,7 +136,7 @@ jobs:
           cd ../common
           patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch
           patch -p1 -F 3 < 69_hide_stuff.patch
-          patch -p1 --fuzz=3 < ./next_hooks.patch
+          # patch -p1 --fuzz=3 < ./next_hooks.patch
 
       - name: Configure Kernel
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus_ace3v_v/kernel_platform
